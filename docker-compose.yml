@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: alef
+      POSTGRES_PASSWORD: alef
+      POSTGRES_DB: alef
+    ports:
+      - "5432:5432"
+    volumes:
+      - alef_pgdata:/var/lib/postgresql/data
+
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      DATABASE_URL: postgres://alef:alef@db:5432/alef
+      JWT_SECRET: ${JWT_SECRET:-alef-change-me-in-production}
+      PORT: "3002"
+    depends_on:
+      - db
+
+volumes:
+  alef_pgdata:
