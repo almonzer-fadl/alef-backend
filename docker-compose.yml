@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: alef
       POSTGRES_DB: alef
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - alef_pgdata:/var/lib/postgresql/data
 
