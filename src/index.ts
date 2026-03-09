@@ -27,6 +27,8 @@ import { moduleRoutes } from "./routes/modules";
 import { habitRoutes } from "./routes/habits";
 import { healthRoutes } from "./routes/health";
 import { journalRoutes } from "./routes/journal";
+import { dietRoutes } from "./routes/diet";
+import { fitnessRoutes } from "./routes/fitness";
 
 const app = new Hono();
 
@@ -59,6 +61,8 @@ app.route("/api/modules", moduleRoutes);
 app.route("/api/habits", habitRoutes);
 app.route("/api/health", healthRoutes);
 app.route("/api/journal", journalRoutes);
+app.route("/api/diet", dietRoutes);
+app.route("/api/fitness", fitnessRoutes);
 
 // ─── Error Handling ──────────────────────────────────────────────────
 
