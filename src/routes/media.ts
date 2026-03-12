@@ -53,6 +53,66 @@ const createMediaSchema = z.object({
 
 const updateMediaSchema = createMediaSchema.partial();
 
+// ─── GET /media/search — TMDB search proxy ───────────────────────────
+// NOTE: This must be defined BEFORE the /:id route to avoid
+// "search" being captured as an id parameter.
+
+/**
+ * Proxies search requests to TMDB API (movies or TV shows).
+ * Keeps the API key secure on the backend.
+ *
+ * Query params:
+ *   ?q=batman         — search query (required)
+ *   ?type=movie|tv    — media type (required)
+ */
+mediaRoutes.get("/search", async (c) => {
+  const query = c.req.query("q");
+  const type = c.req.query("type") as "movie" | "tv" | undefined;
+
+  if (!query) {
+    return c.json({ error: "Search query (?q=) is required" }, 400);
+  }
+
+  if (!type || !["movie", "tv"].includes(type)) {
+    return c.json({ error: "Valid type (?type=movie|tv) is required" }, 400);
+  }
+
+  const endpoint = type === "movie" ? "search/movie" : "search/tv";
+  const tmdbUrl = `${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`;
+
+  try {
+    const response = await fetch(tmdbUrl);
+    if (!response.ok) {
+      return c.json({ error: "TMDB API request failed" }, 502);
+    }
+
+    const data = await response.json() as {
+      results: Array<{
+        id: number;
+        title?: string;
+        name?: string;
+        poster_path?: string;
+        release_date?: string;
+        first_air_date?: string;
+        overview?: string;
+      }>;
+    };
+
+    const results = data.results.map((item) => ({
+      tmdbId: item.id,
+      title: item.title || item.name || "Untitled",
+      posterUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : null,
+      year: extractYear(item.release_date || item.first_air_date),
+      overview: item.overview || "",
+    }));
+
+    return c.json({ results });
+  } catch (error) {
+    console.error("TMDB search error:", error);
+    return c.json({ error: "Failed to fetch search results" }, 500);
+  }
+});
+
 // ─── GET /media — list all media items ───────────────────────────────
 
 /**
@@ -155,73 +215,6 @@ mediaRoutes.delete("/:id", async (c) => {
 
   if (!deleted) return c.json({ error: "Media item not found" }, 404);
   return c.json({ message: "Media item removed" });
-});
-
-// ─── GET /media/search — TMDB search proxy ───────────────────────────
-
-/**
- * Proxies search requests to TMDB API (movies or TV shows).
- * Keeps the API key secure on the backend.
- *
- * Query params:
- *   ?q=batman         — search query (required)
- *   ?type=movie|tv    — media type (required)
- *
- * Returns simplified results with:
- *   - tmdbId (original TMDB ID)
- *   - title
- *   - posterUrl (full URL with TMDB image base)
- *   - year (extracted from release_date or first_air_date)
- *   - overview
- */
-mediaRoutes.get("/search", async (c) => {
-  const query = c.req.query("q");
-  const type = c.req.query("type") as "movie" | "tv" | undefined;
-
-  if (!query) {
-    return c.json({ error: "Search query (?q=) is required" }, 400);
-  }
-
-  if (!type || !["movie", "tv"].includes(type)) {
-    return c.json({ error: "Valid type (?type=movie|tv) is required" }, 400);
-  }
-
-  // Build TMDB search URL
-  const endpoint = type === "movie" ? "search/movie" : "search/tv";
-  const tmdbUrl = `${TMDB_BASE_URL}/${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`;
-
-  try {
-    const response = await fetch(tmdbUrl);
-    if (!response.ok) {
-      return c.json({ error: "TMDB API request failed" }, 502);
-    }
-
-    const data = await response.json() as {
-      results: Array<{
-        id: number;
-        title?: string;
-        name?: string;
-        poster_path?: string;
-        release_date?: string;
-        first_air_date?: string;
-        overview?: string;
-      }>;
-    };
-
-    // Transform TMDB results into our simplified format
-    const results = data.results.map((item) => ({
-      tmdbId: item.id,
-      title: item.title || item.name || "Untitled",
-      posterUrl: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : null,
-      year: extractYear(item.release_date || item.first_air_date),
-      overview: item.overview || "",
-    }));
-
-    return c.json({ results });
-  } catch (error) {
-    console.error("TMDB search error:", error);
-    return c.json({ error: "Failed to fetch search results" }, 500);
-  }
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────
