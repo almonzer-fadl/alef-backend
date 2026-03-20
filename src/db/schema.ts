@@ -41,6 +41,7 @@ export const moduleEnum = pgEnum("module_key", [
   "books",
   "projects",
   "calendar",
+  "reminders",
 ]);
 
 /** How often a habit repeats */
@@ -81,6 +82,31 @@ export const mediaStatusEnum = pgEnum("media_status", [
   "watching",
   "completed",
   "dropped",
+]);
+
+/** Project status — active projects, parked/archived work */
+export const projectStatusEnum = pgEnum("project_status", [
+  "active",
+  "on_hold",
+  "completed",
+  "archived",
+]);
+
+/** Task priority — visual urgency indicators */
+export const taskPriorityEnum = pgEnum("task_priority", [
+  "urgent",
+  "high",
+  "medium",
+  "low",
+  "none",
+]);
+
+/** Task workflow status — ClickUp-style board columns */
+export const taskStatusEnum = pgEnum("task_status", [
+  "todo",
+  "in_progress",
+  "review",
+  "done",
 ]);
 
 // ─────────────────────────────────────────────────────────────────────
@@ -333,6 +359,201 @@ export const mediaItems = pgTable("media_items", {
   progress: integer("progress"),             // 0-100, mainly for books
   startedAt: date("started_at"),
   completedAt: date("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Module: Projects
+// ─────────────────────────────────────────────────────────────────────
+// Replaces: ClickUp / Notion project management
+// Features: kanban board, task priorities, due dates, project tracking
+
+/**
+ * Projects — top-level containers for tasks.
+ *
+ * Each project has customizable color/icon for visual distinction.
+ * Status tracking helps filter active vs archived work.
+ * Projects cascade-delete their tasks when removed.
+ */
+export const projects = pgTable("projects", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").default("#22D3EE"),   // cyan — projects accent
+  icon: text("icon").default("folder.fill"), // SF Symbol name
+  status: projectStatusEnum("status").default("active").notNull(),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
+ * Tasks — individual work items within projects.
+ *
+ * Tasks can exist without a project (personal todos) via nullable `project_id`.
+ * Priority + status create a two-dimensional urgency/progress system.
+ * Tags enable flexible categorization beyond project boundaries.
+ *
+ * The `completed_at` timestamp enables historical analysis of velocity.
+ */
+export const tasks = pgTable("tasks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: taskStatusEnum("status").default("todo").notNull(),
+  priority: taskPriorityEnum("priority").default("none").notNull(),
+  dueDate: date("due_date"),
+  tags: text("tags").array(),
+  sortOrder: integer("sort_order").default(0),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Module: Calendar
+// ─────────────────────────────────────────────────────────────────────
+// Inspired by: Apple Calendar
+// Features: monthly view, day timeline, recurrence, reminders, location
+
+/**
+ * Calendar events — appointments, reminders, recurring events.
+ *
+ * The `all_day` flag determines whether to show time pickers or just dates.
+ * `recurrence` supports: "daily", "weekly", "monthly", "yearly", or null.
+ * `remind_minutes` specifies reminder offset: null (none), 0 (at time),
+ * 15, 30, 60, etc.
+ *
+ * Each event gets a `color` for the calendar dot indicator and
+ * event card accent. Defaults to violet (#A78BFA).
+ */
+export const events = pgTable("events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time"),
+  allDay: boolean("all_day").default(false),
+  location: text("location"),
+  color: text("color").default("#A78BFA"),
+  recurrence: text("recurrence"),            // "daily", "weekly", "monthly", "yearly", null
+  remindMinutes: integer("remind_minutes"),  // null = no reminder, 0 = at time, 15, 30, 60
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Module: Notes
+// ─────────────────────────────────────────────────────────────────────
+// Inspired by: Apple Notes
+// Features: rich text notes, folders, search, pinning, tags
+
+/**
+ * Note folders — organizational containers for notes.
+ *
+ * Each folder has a customizable icon, color, and sort order.
+ * The default "All Notes" view bypasses folder filtering.
+ * Folders cascade-set notes to null on delete (notes become unfiled).
+ */
+export const noteFolders = pgTable("note_folders", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  icon: text("icon").default("folder.fill"),
+  color: text("color").default("#FBBF24"),   // amber — notes accent
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+/**
+ * Notes — user-created text notes with metadata.
+ *
+ * Content supports markdown/plain text. The `isPinned` flag
+ * keeps important notes at the top of the list. `isArchived`
+ * hides notes from the main view without deleting them.
+ *
+ * `tags` enables flexible categorization and search filtering.
+ * `updatedAt` determines sort order in the notes list.
+ */
+export const notes = pgTable("notes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  folderId: uuid("folder_id").references(() => noteFolders.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  content: text("content"),                  // markdown/plain text
+  isPinned: boolean("is_pinned").default(false),
+  isArchived: boolean("is_archived").default(false),
+  tags: text("tags").array(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Module: Reminders
+// ─────────────────────────────────────────────────────────────────────
+// Inspired by: Apple Reminders
+// Features: lists, due dates, priorities, recurring reminders, flags
+
+/**
+ * Reminder lists — organizational containers for reminders.
+ *
+ * Each list has a customizable icon, color, and sort order.
+ * Smart lists (Today, Scheduled, All, Flagged) are computed views,
+ * not stored in this table. This only tracks user-created lists.
+ */
+export const reminderLists = pgTable("reminder_lists", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  icon: text("icon").default("list.bullet"),
+  color: text("color").default("#60A5FA"),   // blue — reminders accent
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+/**
+ * Reminders — individual to-do items with rich metadata.
+ *
+ * Priority scale: 0=none, 1=low, 2=medium, 3=high.
+ * Due date/time are separate fields — allows "due today" without a specific time.
+ * Recurrence supports: "daily", "weekly", "monthly", "yearly" (null = no repeat).
+ *
+ * When completed, `completed_at` is set and `is_completed` becomes true.
+ * Flagged reminders appear in the "Flagged" smart list.
+ */
+export const reminders = pgTable("reminders", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  listId: uuid("list_id").references(() => reminderLists.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  notes: text("notes"),
+  isCompleted: boolean("is_completed").default(false),
+  priority: integer("priority").default(0),       // 0=none, 1=low, 2=medium, 3=high
+  dueDate: date("due_date"),
+  dueTime: text("due_time"),                      // "09:00"
+  recurrence: text("recurrence"),                  // daily, weekly, monthly, yearly
+  flagged: boolean("flagged").default(false),
+  url: text("url"),
+  completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

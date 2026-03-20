@@ -31,6 +31,10 @@ import { dietRoutes } from "./routes/diet";
 import { fitnessRoutes } from "./routes/fitness";
 import { mediaRoutes } from "./routes/media";
 import { bookRoutes } from "./routes/books";
+import { calendarRoutes } from "./routes/calendar";
+import { reminderRoutes } from "./routes/reminders";
+import noteRoutes from "./routes/notes";
+import { projectRoutes } from "./routes/projects";
 
 const app = new Hono();
 
@@ -67,6 +71,10 @@ app.route("/api/diet", dietRoutes);
 app.route("/api/fitness", fitnessRoutes);
 app.route("/api/media", mediaRoutes);
 app.route("/api/books", bookRoutes);
+app.route("/api/reminders", reminderRoutes);
+app.route("/api/calendar", calendarRoutes);
+app.route("/api/notes", noteRoutes);
+app.route("/api/projects", projectRoutes);
 
 // ─── Error Handling ──────────────────────────────────────────────────
 
