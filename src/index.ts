@@ -32,7 +32,7 @@ import { fitnessRoutes } from "./routes/fitness";
 import { mediaRoutes } from "./routes/media";
 import { bookRoutes } from "./routes/books";
 import { calendarRoutes } from "./routes/calendar";
-import { reminderRoutes } from "./routes/reminders";
+import reminderRoutes from "./routes/reminders";
 import noteRoutes from "./routes/notes";
 import { projectRoutes } from "./routes/projects";
 
