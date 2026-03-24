@@ -119,6 +119,49 @@ projectRoutes.get("/", async (c) => {
   return c.json({ projects: filtered });
 });
 
+// ─── GET /tasks — list all tasks (must be before /:id) ───────────────
+
+/**
+ * Returns tasks for the authenticated user.
+ * Query params:
+ *   ?status=todo          — filter by status
+ *   ?priority=urgent      — filter by priority
+ *   ?projectId=xxx        — filter by project
+ *   ?noProject=true       — only tasks without a project
+ */
+projectRoutes.get("/tasks", async (c) => {
+  const userId = c.get("userId");
+  const statusFilter = c.req.query("status");
+  const priorityFilter = c.req.query("priority");
+  const projectIdFilter = c.req.query("projectId");
+  const noProject = c.req.query("noProject") === "true";
+
+  let query = db
+    .select()
+    .from(tasks)
+    .where(eq(tasks.userId, userId))
+    .orderBy(tasks.sortOrder, desc(tasks.createdAt));
+
+  const result = await query;
+
+  let filtered = result;
+
+  if (statusFilter) {
+    filtered = filtered.filter((t) => t.status === statusFilter);
+  }
+  if (priorityFilter) {
+    filtered = filtered.filter((t) => t.priority === priorityFilter);
+  }
+  if (projectIdFilter) {
+    filtered = filtered.filter((t) => t.projectId === projectIdFilter);
+  }
+  if (noProject) {
+    filtered = filtered.filter((t) => !t.projectId);
+  }
+
+  return c.json({ tasks: filtered });
+});
+
 // ─── GET /projects/:id — single project with task counts ─────────────
 
 /**
@@ -244,48 +287,6 @@ projectRoutes.get("/:id/tasks", async (c) => {
 });
 
 // ─── GET /tasks — list all tasks (filterable) ────────────────────────
-
-/**
- * Returns tasks for the authenticated user.
- * Query params:
- *   ?status=todo          — filter by status
- *   ?priority=urgent      — filter by priority
- *   ?projectId=xxx        — filter by project
- *   ?noProject=true       — only tasks without a project
- */
-projectRoutes.get("/tasks", async (c) => {
-  const userId = c.get("userId");
-  const statusFilter = c.req.query("status");
-  const priorityFilter = c.req.query("priority");
-  const projectIdFilter = c.req.query("projectId");
-  const noProject = c.req.query("noProject") === "true";
-
-  let query = db
-    .select()
-    .from(tasks)
-    .where(eq(tasks.userId, userId))
-    .orderBy(tasks.sortOrder, desc(tasks.createdAt));
-
-  const result = await query;
-
-  // Apply filters client-side
-  let filtered = result;
-
-  if (statusFilter) {
-    filtered = filtered.filter((t) => t.status === statusFilter);
-  }
-  if (priorityFilter) {
-    filtered = filtered.filter((t) => t.priority === priorityFilter);
-  }
-  if (projectIdFilter) {
-    filtered = filtered.filter((t) => t.projectId === projectIdFilter);
-  }
-  if (noProject) {
-    filtered = filtered.filter((t) => !t.projectId);
-  }
-
-  return c.json({ tasks: filtered });
-});
 
 // ─── POST /tasks — create task ───────────────────────────────────────
 

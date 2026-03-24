@@ -1,0 +1,64 @@
+# Alef Backend — CI Test Suite
+#
+# Runs on every push and pull request to main.
+# Spins up a PostgreSQL service container, installs Bun,
+# pushes the schema, and runs the full test suite.
+#
+# The tests use Hono's app.request() method — no HTTP server needed.
+# Each test file creates/cleans its own test user for isolation.
+
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    # PostgreSQL service container — tests need a real database
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: alef
+          POSTGRES_PASSWORD: alef
+          POSTGRES_DB: alef_test
+        ports:
+          - 5432:5432
+        # Health check — wait for Postgres to be ready before running tests
+        options: >-
+          --health-cmd "pg_isready -U alef"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://alef:alef@localhost:5432/alef_test
+      JWT_SECRET: test-secret-for-ci-only
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Push database schema
+        run: bunx drizzle-kit push
+
+      - name: Run tests
+        run: bun test --bail
+
+      - name: Test summary
+        if: always()
+        run: echo "Tests completed. Check the log above for results."

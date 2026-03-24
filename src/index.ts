@@ -93,6 +93,9 @@ const port = parseInt(process.env.PORT || "3002");
 
 console.log(`\n🔤 Alef API running on http://localhost:${port}\n`);
 
+/** Named export for test suite — tests call app.request() directly */
+export { app };
+
 export default {
   port,
   fetch: app.fetch,

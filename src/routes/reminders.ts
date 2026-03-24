@@ -150,131 +150,6 @@ app.get("/upcoming", async (c) => {
   return c.json({ reminders: result });
 });
 
-/**
- * GET /reminders/:id
- * Get a single reminder by ID.
- */
-app.get("/:id", async (c) => {
-  const userId = c.get("userId") as string;
-  const { id } = c.req.param();
-
-  const [reminder] = await db
-    .select()
-    .from(reminders)
-    .where(and(eq(reminders.id, id), eq(reminders.userId, userId)))
-    .limit(1);
-
-  if (!reminder) {
-    return c.json({ error: "Reminder not found" }, 404);
-  }
-
-  return c.json({ reminder });
-});
-
-/**
- * POST /reminders
- * Create a new reminder.
- */
-app.post("/", async (c) => {
-  const userId = c.get("userId") as string;
-  const body = await c.req.json();
-
-  const { title, notes, listId, priority, dueDate, dueTime, recurrence, flagged, url } = body;
-
-  if (!title) {
-    return c.json({ error: "Title is required" }, 400);
-  }
-
-  const [reminder] = await db
-    .insert(reminders)
-    .values({
-      userId,
-      listId: listId || null,
-      title,
-      notes: notes || null,
-      priority: priority ?? 0,
-      dueDate: dueDate || null,
-      dueTime: dueTime || null,
-      recurrence: recurrence || null,
-      flagged: flagged ?? false,
-      url: url || null,
-    })
-    .returning();
-
-  return c.json({ reminder }, 201);
-});
-
-/**
- * PATCH /reminders/:id
- * Update a reminder (including toggling completion).
- */
-app.patch("/:id", async (c) => {
-  const userId = c.get("userId") as string;
-  const { id } = c.req.param();
-  const body = await c.req.json();
-
-  // Check ownership
-  const [existing] = await db
-    .select()
-    .from(reminders)
-    .where(and(eq(reminders.id, id), eq(reminders.userId, userId)))
-    .limit(1);
-
-  if (!existing) {
-    return c.json({ error: "Reminder not found" }, 404);
-  }
-
-  // Build update object
-  const updates: any = { updatedAt: new Date() };
-
-  if (body.title !== undefined) updates.title = body.title;
-  if (body.notes !== undefined) updates.notes = body.notes;
-  if (body.listId !== undefined) updates.listId = body.listId;
-  if (body.priority !== undefined) updates.priority = body.priority;
-  if (body.dueDate !== undefined) updates.dueDate = body.dueDate;
-  if (body.dueTime !== undefined) updates.dueTime = body.dueTime;
-  if (body.recurrence !== undefined) updates.recurrence = body.recurrence;
-  if (body.flagged !== undefined) updates.flagged = body.flagged;
-  if (body.url !== undefined) updates.url = body.url;
-
-  // Handle completion toggle
-  if (body.isCompleted !== undefined) {
-    updates.isCompleted = body.isCompleted;
-    updates.completedAt = body.isCompleted ? new Date() : null;
-  }
-
-  const [reminder] = await db
-    .update(reminders)
-    .set(updates)
-    .where(eq(reminders.id, id))
-    .returning();
-
-  return c.json({ reminder });
-});
-
-/**
- * DELETE /reminders/:id
- * Delete a reminder permanently.
- */
-app.delete("/:id", async (c) => {
-  const userId = c.get("userId") as string;
-  const { id } = c.req.param();
-
-  const [existing] = await db
-    .select()
-    .from(reminders)
-    .where(and(eq(reminders.id, id), eq(reminders.userId, userId)))
-    .limit(1);
-
-  if (!existing) {
-    return c.json({ error: "Reminder not found" }, 404);
-  }
-
-  await db.delete(reminders).where(eq(reminders.id, id));
-
-  return c.json({ message: "Reminder deleted" });
-});
-
 // ─── Reminder Lists ──────────────────────────────────────────────────
 
 /**
@@ -441,6 +316,132 @@ app.delete("/lists/:id", async (c) => {
   await db.delete(reminderLists).where(eq(reminderLists.id, id));
 
   return c.json({ message: "List deleted" });
+});
+
+
+/**
+ * GET /reminders/:id
+ * Get a single reminder by ID.
+ */
+app.get("/:id", async (c) => {
+  const userId = c.get("userId") as string;
+  const { id } = c.req.param();
+
+  const [reminder] = await db
+    .select()
+    .from(reminders)
+    .where(and(eq(reminders.id, id), eq(reminders.userId, userId)))
+    .limit(1);
+
+  if (!reminder) {
+    return c.json({ error: "Reminder not found" }, 404);
+  }
+
+  return c.json({ reminder });
+});
+
+/**
+ * POST /reminders
+ * Create a new reminder.
+ */
+app.post("/", async (c) => {
+  const userId = c.get("userId") as string;
+  const body = await c.req.json();
+
+  const { title, notes, listId, priority, dueDate, dueTime, recurrence, flagged, url } = body;
+
+  if (!title) {
+    return c.json({ error: "Title is required" }, 400);
+  }
+
+  const [reminder] = await db
+    .insert(reminders)
+    .values({
+      userId,
+      listId: listId || null,
+      title,
+      notes: notes || null,
+      priority: priority ?? 0,
+      dueDate: dueDate || null,
+      dueTime: dueTime || null,
+      recurrence: recurrence || null,
+      flagged: flagged ?? false,
+      url: url || null,
+    })
+    .returning();
+
+  return c.json({ reminder }, 201);
+});
+
+/**
+ * PATCH /reminders/:id
+ * Update a reminder (including toggling completion).
+ */
+app.patch("/:id", async (c) => {
+  const userId = c.get("userId") as string;
+  const { id } = c.req.param();
+  const body = await c.req.json();
+
+  // Check ownership
+  const [existing] = await db
+    .select()
+    .from(reminders)
+    .where(and(eq(reminders.id, id), eq(reminders.userId, userId)))
+    .limit(1);
+
+  if (!existing) {
+    return c.json({ error: "Reminder not found" }, 404);
+  }
+
+  // Build update object
+  const updates: any = { updatedAt: new Date() };
+
+  if (body.title !== undefined) updates.title = body.title;
+  if (body.notes !== undefined) updates.notes = body.notes;
+  if (body.listId !== undefined) updates.listId = body.listId;
+  if (body.priority !== undefined) updates.priority = body.priority;
+  if (body.dueDate !== undefined) updates.dueDate = body.dueDate;
+  if (body.dueTime !== undefined) updates.dueTime = body.dueTime;
+  if (body.recurrence !== undefined) updates.recurrence = body.recurrence;
+  if (body.flagged !== undefined) updates.flagged = body.flagged;
+  if (body.url !== undefined) updates.url = body.url;
+
+  // Handle completion toggle
+  if (body.isCompleted !== undefined) {
+    updates.isCompleted = body.isCompleted;
+    updates.completedAt = body.isCompleted ? new Date() : null;
+  }
+
+  const [reminder] = await db
+    .update(reminders)
+    .set(updates)
+    .where(eq(reminders.id, id))
+    .returning();
+
+  return c.json({ reminder });
+});
+
+/**
+ * DELETE /reminders/:id
+ * Delete a reminder permanently.
+ */
+app.delete("/:id", async (c) => {
+  const userId = c.get("userId") as string;
+  const { id } = c.req.param();
+
+  const [existing] = await db
+    .select()
+    .from(reminders)
+    .where(and(eq(reminders.id, id), eq(reminders.userId, userId)))
+    .limit(1);
+
+  if (!existing) {
+    return c.json({ error: "Reminder not found" }, 404);
+  }
+
+  await db.delete(reminders).where(eq(reminders.id, id));
+
+  return c.json({ message: "Reminder deleted" });
 });
 
 export default app;
